@@ -1,0 +1,15 @@
+[Unit]
+Description=Agent Governance Intelligence Sweep
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/scott/ai-lab/agent-governance
+ExecStart=/usr/bin/python3 -c "from intelligence.sweep import run_sweep; import json; print(json.dumps(run_sweep(), indent=2))"
+Environment=AGENT_GOV_DB=postgresql://agent:***@127.0.0.1/agent_governance
+StandardOutput=append:/home/scott/ai-lab/agent-governance/logs/sweep-service.log
+StandardError=append:/home/scott/ai-lab/agent-governance/logs/sweep-service.log
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

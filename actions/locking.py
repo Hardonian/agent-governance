@@ -1,11 +1,19 @@
 """Repo Locking - prevents conflicting mutations."""
 import time
+
+def _resolve_repo_id(repo_id_or_name: str) -> str:
+    """Resolve repo name to actual repo_id if needed."""
+    from db import fetchone
+    row = fetchone("SELECT repo_id FROM repos WHERE repo_id = :id OR name = :id", {"id": repo_id_or_name})
+    return row["repo_id"] if row else repo_id_or_name
+
 import uuid
 from db import execute, fetchone, fetchall
 
 
 def acquire_lock(repo_id: str, lock_type: str, worker_id: str = None, timeout_seconds: int = 600) -> dict:
     """Acquire a lock on a repo. Returns lock info or raises."""
+    repo_id = _resolve_repo_id(repo_id)
     worker_id = worker_id or f"hermes-{uuid.uuid4().hex[:8]}"
     # Clean expired locks
     execute("DELETE FROM repo_locks WHERE expires_at < NOW()")
@@ -27,6 +35,7 @@ def acquire_lock(repo_id: str, lock_type: str, worker_id: str = None, timeout_se
 
 def release_lock(repo_id: str, lock_type: str, worker_id: str = None) -> bool:
     """Release a lock."""
+    repo_id = _resolve_repo_id(repo_id)
     if worker_id:
         execute(
             "DELETE FROM repo_locks WHERE repo_id = :repo AND lock_type = :lt AND worker_id = :wid",
@@ -42,6 +51,7 @@ def release_lock(repo_id: str, lock_type: str, worker_id: str = None) -> bool:
 
 def is_locked(repo_id: str, lock_type: str = "write") -> bool:
     """Check if a repo is locked."""
+    repo_id = _resolve_repo_id(repo_id)
     execute("DELETE FROM repo_locks WHERE expires_at < NOW()")
     lock = fetchone(
         "SELECT * FROM repo_locks WHERE repo_id = :repo AND lock_type = :lt",

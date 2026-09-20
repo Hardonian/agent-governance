@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+
+def _resolve_repo_id(repo_id_or_name: str) -> str:
+    """Resolve repo name to actual repo_id if needed."""
+    from db import fetchone
+    row = fetchone("SELECT repo_id FROM repos WHERE repo_id = :id OR name = :id", {"id": repo_id_or_name})
+    return row["repo_id"] if row else repo_id_or_name
+
 import re
 import subprocess
 from datetime import datetime, timezone
@@ -64,6 +71,7 @@ class HealthEngine:
 
     def analyze(self, repo_path: str, repo_id: str) -> list[dict]:
         """Run all health checks on *repo_path*, store findings, return them."""
+        repo_id = _resolve_repo_id(repo_id)
         repo_path = os.path.abspath(repo_path)
         self._ensure_repo(repo_id, repo_path)
         findings: list[dict] = []
@@ -90,6 +98,7 @@ class HealthEngine:
 
     def get_findings(self, repo_id: str) -> list[dict]:
         """Return all unresolved findings for a repo."""
+        repo_id = _resolve_repo_id(repo_id)
         return fetchall(
             "SELECT * FROM health_findings WHERE repo_id = :rid AND resolved = FALSE ORDER BY created_at DESC",
             {"rid": repo_id},
@@ -104,6 +113,7 @@ class HealthEngine:
 
     def generate_backlog(self, repo_id: str = None) -> list[dict]:
         """Create prioritised backlog items from unresolved findings."""
+        repo_id = _resolve_repo_id(repo_id)
         if repo_id:
             findings = fetchall(
                 "SELECT * FROM health_findings WHERE repo_id = :rid AND resolved = FALSE ORDER BY severity DESC",
@@ -172,6 +182,7 @@ class HealthEngine:
     @staticmethod
     def _ensure_repo(repo_id: str, repo_path: str) -> None:
         """Upsert into repos so FK constraints pass."""
+        repo_id = _resolve_repo_id(repo_id)
         try:
             execute(
                 """INSERT INTO repos (repo_id, name, canonical_path)
