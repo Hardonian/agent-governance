@@ -1,0 +1,225 @@
+# Agent Law Gateway — Default Laws
+# Version: 1.0.0
+# These laws are evaluated in order; all conditions in a law must match (AND).
+# Enforcement: BLOCK prevents execution, WARN returns a warning, LOG is silent.
+
+laws:
+  # ═══════════════════════════════════════════════
+  # SECRETS — prevent credential exfiltration
+  # ═══════════════════════════════════════════════
+
+  - law_id: NO_SECRETS_IN_COMMANDS
+    description: "Block commands containing embedded secrets, API keys, or credentials"
+    severity: CRITICAL
+    category: SECRETS
+    enforcement: BLOCK
+    conditions:
+      - secret_detected: true
+
+  # ═══════════════════════════════════════════════
+  # FILESYSTEM — protect critical paths
+  # ═══════════════════════════════════════════════
+
+  - law_id: PROTECT_SYSTEM_DIRS
+    description: "Block writes to protected system directories"
+    severity: CRITICAL
+    category: FILESYSTEM
+    enforcement: BLOCK
+    conditions:
+      - path_outside_allowed: true
+
+  - law_id: NO_ROOT_HOME_ACCESS
+    description: "Block access to /root — agent should never operate as root home"
+    severity: HIGH
+    category: FILESYSTEM
+    enforcement: BLOCK
+    conditions:
+      - path_in:
+          - "/root"
+
+  - law_id: DESTRUCTIVE_FS_OPS
+    description: "Block destructive filesystem operations (rm -rf, shred, dd)"
+    severity: HIGH
+    category: FILESYSTEM
+    enforcement: BLOCK
+    conditions:
+      - risk_level_at_least: "DESTRUCTIVE"
+      - category: "FILESYSTEM"
+
+  - law_id: NO_DEV_ACCESS
+    description: "Block direct access to /dev devices"
+    severity: CRITICAL
+    category: FILESYSTEM
+    enforcement: BLOCK
+    conditions:
+      - path_in:
+          - "/dev"
+
+  # ═══════════════════════════════════════════════
+  # GIT — prevent irreversible git operations
+  # ═══════════════════════════════════════════════
+
+  - law_id: NO_FORCE_PUSH
+    description: "Block git push --force — use --force-with-lease instead"
+    severity: HIGH
+    category: GIT
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "git\\s+push.*--force(?!-with-lease)"
+      - category: "GIT"
+
+  - law_id: NO_GIT_CLEAN
+    description: "Block git clean — too easy to lose untracked work"
+    severity: HIGH
+    category: GIT
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "git\\s+clean"
+      - category: "GIT"
+
+  - law_id: NO_HARD_RESET
+    description: "Block git reset --hard — destroys uncommitted changes"
+    severity: HIGH
+    category: GIT
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "git\\s+reset.*--hard"
+      - category: "GIT"
+
+  - law_id: NO_FILTER_BRANCH
+    description: "Block git filter-branch/filter-repo — rewrites history"
+    severity: CRITICAL
+    category: GIT
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "git\\s+filter-(branch|repo)"
+      - category: "GIT"
+
+  - law_id: GIT_PUSH_REQUIRES_CONTEXT
+    description: "Warn on git push — ensure intentional"
+    severity: MEDIUM
+    category: GIT
+    enforcement: WARN
+    conditions:
+      - command_matches: "git\\s+push(?!.*--force)"
+      - category: "GIT"
+
+  # ═══════════════════════════════════════════════
+  # SHELL — dangerous command patterns
+  # ═══════════════════════════════════════════════
+
+  - law_id: NO_PIPE_TO_SHELL
+    description: "Block piping untrusted content to sh/bash"
+    severity: CRITICAL
+    category: SHELL
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "\\|\\s*(ba)?sh\\b"
+
+  - law_id: NO_FORK_BOMB
+    description: "Block fork bomb patterns"
+    severity: CRITICAL
+    category: SHELL
+    enforcement: BLOCK
+    conditions:
+      - command_matches: ":\\(\\)\\s*\\{|\\.\\s*:\\|"
+
+  - law_id: NO_RM_RF_ROOT
+    description: "Block rm -rf / — absolute destruction"
+    severity: CRITICAL
+    category: SHELL
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "rm\\s+.*-[^ ]*r[^ ]*f.*\\s+/\\s*$"
+
+  - law_id: SYSTEM_MUTATION_REQUIRES_CONFIRMATION
+    description: "Warn on system-level mutations (apt, systemctl, etc.)"
+    severity: HIGH
+    category: SHELL
+    enforcement: WARN
+    conditions:
+      - risk_level_at_least: "SYSTEM_MUTATION"
+
+  - law_id: LOG_ALL_SHELL_COMMANDS
+    description: "Log all shell commands for audit trail"
+    severity: LOW
+    category: SHELL
+    enforcement: LOG
+    conditions:
+      - category: "SHELL"
+
+  # ═══════════════════════════════════════════════
+  # INFRASTRUCTURE — protect host system
+  # ═══════════════════════════════════════════════
+
+  - law_id: NO_REBOOT
+    description: "Block reboot/shutdown — agent should never restart the host"
+    severity: CRITICAL
+    category: INFRASTRUCTURE
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "^(reboot|shutdown|poweroff|halt|init\\s+0)"
+
+  - law_id: NO_KERNEL_MODULES
+    description: "Block loading/unloading kernel modules"
+    severity: CRITICAL
+    category: INFRASTRUCTURE
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "^(modprobe|rmmod|insmod)"
+
+  - law_id: NO_FIREWALL_CHANGES
+    description: "Block iptables/nft changes — can lock out access"
+    severity: HIGH
+    category: INFRASTRUCTURE
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "^(iptables|nft)"
+
+  - law_id: SYSTEMCTL_STOP_REQUIRES_CONTEXT
+    description: "Warn on stopping/disabling services"
+    severity: HIGH
+    category: INFRASTRUCTURE
+    enforcement: WARN
+    conditions:
+      - command_matches: "systemctl\\s+(stop|disable|mask)"
+
+  # ═══════════════════════════════════════════════
+  # DATABASE — protect data stores
+  # ═══════════════════════════════════════════════
+
+  - law_id: NO_DROP_DATABASE
+    description: "Block DROP DATABASE commands"
+    severity: CRITICAL
+    category: DATABASE
+    enforcement: BLOCK
+    conditions:
+      - command_matches: "(?i)(drop\\s+database|dropdb)"
+
+  - law_id: NO_TRUNCATE_TABLE
+    description: "Warn on TRUNCATE TABLE — data loss risk"
+    severity: HIGH
+    category: DATABASE
+    enforcement: WARN
+    conditions:
+      - command_matches: "(?i)truncate\\s+table"
+
+  # ═══════════════════════════════════════════════
+  # NETWORK — control outbound connections
+  # ═══════════════════════════════════════════════
+
+  - law_id: NO_RAW_SOCKET
+    description: "Block raw network tools (nc, ncat, nmap) unless explicitly allowed"
+    severity: HIGH
+    category: NETWORK
+    enforcement: WARN
+    conditions:
+      - command_matches: "^(nc|ncat|nmap|netcat)"
+
+  - law_id: WARN_CURL_PIPE
+    description: "Warn on curl|sh — potential remote code execution"
+    severity: HIGH
+    category: NETWORK
+    enforcement: WARN
+    conditions:
+      - command_matches: "curl.*\\|.*sh"

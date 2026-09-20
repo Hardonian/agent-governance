@@ -1,0 +1,174 @@
+# Agent Governance Laws
+# Defines allowed/disallowed command patterns and resource policies
+
+command_classes:
+  READ_ONLY:
+    - ls
+    - cat
+    - head
+    - tail
+    - find
+    - grep
+    - git status
+    - git log
+    - git diff
+    - git show
+    - pwd
+    - whoami
+    - date
+    - echo
+    - which
+    - env
+    - printenv
+
+  DESTRUCTIVE:
+    - rm
+    - rmdir
+    - mv
+    - chmod
+    - chown
+    - kill
+    - pkill
+    - dd
+    - mkfs
+    - fdisk
+    - shutdown
+    - reboot
+    - systemctl stop
+    - systemctl disable
+
+  NETWORK:
+    - curl
+    - wget
+    - ssh
+    - scp
+    - rsync
+    - nc
+    - netcat
+
+  GIT_WRITE:
+    - git add
+    - git commit
+    - git push
+    - git merge
+    - git rebase
+    - git reset
+    - git checkout
+    - git branch
+
+  COMPILE:
+    - make
+    - cmake
+    - gcc
+    - g++
+    - rustc
+    - cargo build
+    - go build
+    - python setup.py
+    - pip install
+
+path_guards:
+  blocked:
+    - /etc/passwd
+    - /etc/shadow
+    - /etc/sudoers
+    - /root
+    - /boot
+    - /proc/kcore
+    - ~/.ssh/id_rsa
+    - ~/.ssh/id_ed25519
+    - ~/.gnupg
+
+  allowed:
+    - /tmp
+    - /home
+    - /var/tmp
+
+secret_patterns:
+  - name: AWS Access Key
+    pattern: 'AKIA[0-9A-Z]{16}'
+  - name: AWS Secret Key
+    pattern: 'aws_secret_access_key\s*=\s*[A-Za-z0-9/+=]{40}'
+  - name: GitHub Token
+    pattern: 'ghp_[A-Za-z0-9]{36}'
+  - name: Generic API Key
+    pattern: 'api[_-]?key\s*[=:]\s*["\x27]?[A-Za-z0-9_\-]{20,}'
+  - name: Private Key Block
+    pattern: '-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----'
+  - name: Bearer Token
+    pattern: 'Bearer\s+[A-Za-z0-9\-._~+/]+=*'
+
+policies:
+  - name: no-force-push-main
+    description: Block force pushes to main/master branches
+    rule: "git push.*--force.*(?:main|master)"
+    action: DENY
+    severity: CRITICAL
+
+  - name: no-rm-rf-root
+    description: Block rm -rf on root or home directories
+    rule: "rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|--recursive.*--force).*\\s+/"
+    action: DENY
+    severity: CRITICAL
+
+  - name: allow-feature-branch-commit
+    description: Allow commits to feature branches
+    rule: "git\\s+commit"
+    branches:
+      - "feature/*"
+      - "fix/*"
+      - "dev/*"
+    action: ALLOW
+
+  - name: allow-ls
+    description: Always allow ls
+    rule: "^ls\\b"
+    action: ALLOW
+
+  - name: block-shadow-write
+    description: Block writes to /etc/shadow
+    rule: ".*>\\s*/etc/shadow"
+    action: DENY
+    severity: CRITICAL
+
+  - name: block-drop-table
+    description: Block SQL DROP TABLE commands
+    rule: "(?i)DROP\\s+TABLE"
+    action: DENY
+    severity: CRITICAL
+
+  - name: block-drop-database
+    description: Block SQL DROP DATABASE commands
+    rule: "(?i)DROP\\s+DATABASE"
+    action: DENY
+    severity: CRITICAL
+
+  - name: block-truncate
+    description: Block SQL TRUNCATE commands
+    rule: "(?i)TRUNCATE\\s+TABLE"
+    action: DENY
+    severity: CRITICAL
+
+  - name: block-dd-device
+    description: Block dd writing to device files
+    rule: "dd\\s+.*of=/dev/"
+    action: DENY
+    severity: CRITICAL
+
+  - name: block-mkfs
+    description: Block filesystem creation commands
+    rule: "^mkfs\\b"
+    action: DENY
+    severity: CRITICAL
+
+  - name: block-modprobe
+    description: Block kernel module loading
+    rule: "^(insmod|modprobe)\\b"
+    action: DENY
+    severity: HIGH
+
+  - name: warn-systemctl
+    description: Warn on systemctl service changes
+    rule: "systemctl\\s+(stop|disable|restart|start)\\b"
+    action: DENY
+    severity: MEDIUM

@@ -1,0 +1,9 @@
+[
+  {
+    "targets": ["127.0.0.1:9199"],
+    "labels": {
+      "service": "governance",
+      "job": "governance-exporter"
+    }
+  }
+]

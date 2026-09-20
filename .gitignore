@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+mesh/health.log
+mesh/governance.log
+receipts/*.json

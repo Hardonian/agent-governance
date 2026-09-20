@@ -1,0 +1,56 @@
+# Agent Governance CI — self-contained workflow for Hardonian org repos.
+# Copy this file + governance-ci.sh into any repo's .github/workflows/.
+# It clones agent-governance, copies the gateway + tests, installs deps, runs pytest.
+# Requires: Python 3.11, no gateway installed in the repo itself.
+
+name: Agent Governance CI
+
+on:
+  push:
+    branches: [main, master, "feature/*", "fix/*", "dev/*"]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  governance-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Clone agent-governance and run tests
+        env:
+          GOV_REPO: Hardonian/agent-governance
+          GOV_BRANCH: main
+        run: |
+          set -euo pipefail
+
+          # Clone the governance repo into a temp location
+          GOV_DIR=$(mktemp -d)
+          git clone --depth1 --branch "$GOV_BRANCH" \
+            "https://github.com/${GOV_REPO}.git" "$GOV_DIR/agent-governance"
+
+          GOV_ROOT="$GOV_DIR/agent-governance"
+
+          # Copy gateway package, tests, and laws into a self-contained test tree
+          TEST_ROOT=$(mktemp -d)
+          cp -r "$GOV_ROOT/gateway" "$TEST_ROOT/gateway"
+          cp -r "$GOV_ROOT/tests" "$TEST_ROOT/tests"
+          cp -r "$GOV_ROOT/laws.yaml" "$TEST_ROOT/laws.yaml"
+          cp -r "$GOV_ROOT/providers" "$TEST_ROOT/providers" 2>/dev/null || true
+          cp -r "$GOV_ROOT/actions" "$TEST_ROOT/actions" 2>/dev/null || true
+
+          # Install dependencies
+          pip install --quiet pyyaml pydantic pytest
+
+          # Run the test suite from the self-contained tree
+          cd "$TEST_ROOT"
+          python -m pytest tests/ -v --tb=short

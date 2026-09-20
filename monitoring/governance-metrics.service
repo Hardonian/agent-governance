@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Governance Prometheus Metrics Exporter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/scott/.venv/bin/python3 /home/scott/ai-lab/agent-governance/monitoring/metrics_exporter.py
+Restart=on-failure
+RestartSec=5
+Environment=GOVERNANCE_RECEIPTS_DIR=/home/scott/ai-lab/agent-governance/receipts
+Environment=GOVERNANCE_LAWS_FILE=/home/scott/ai-lab/agent-governance/laws.yaml
+Environment=GOVERNANCE_NODES_FILE=/home/scott/ai-lab/agent-governance/nodes.json
+Environment=GOVERNANCE_EXPORTER_PORT=9199
+
+[Install]
+WantedBy=default.target
