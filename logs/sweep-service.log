@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from intelligence.sweep import run_sweep; import json; print(json.dumps(run_sweep(), indent=2))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/scott/ai-lab/agent-governance/intelligence/sweep.py", line 8, in <module>
+    from db import execute, fetchall, fetchone
+  File "/home/scott/ai-lab/agent-governance/db/__init__.py", line 4, in <module>
+    from sqlalchemy import create_engine, text
+ModuleNotFoundError: No module named 'sqlalchemy'

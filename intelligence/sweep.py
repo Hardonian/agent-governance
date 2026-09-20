@@ -61,6 +61,19 @@ def run_sweep() -> dict:
         except Exception:
             pass
 
+    # 3b. Update indexes for changed repos
+    for repo_id in repos_changed:
+        repo = fetchone("SELECT canonical_path FROM repos WHERE repo_id = :rid", {"rid": repo_id})
+        if not repo:
+            continue
+        try:
+            from intelligence import index_repo
+            from intelligence.persistence import persist_index
+            data = index_repo(repo["canonical_path"], repo_id)
+            persist_index(repo_id, data)
+        except Exception:
+            pass
+
     # 4. Count current backlog state
     backlog_before = fetchone("SELECT COUNT(*) as cnt FROM backlog_items WHERE status = 'open'")
     backlog_before_count = backlog_before["cnt"] if backlog_before else 0
