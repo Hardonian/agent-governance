@@ -95,6 +95,7 @@ def main():
 
     # Allowed — pass through with optional context
     classification = result.get("classification", "UNKNOWN")
+    _log_allow(command, payload)
     if classification in ("REPO_MUTATION", "SYSTEM_MUTATION"):
         print(json.dumps({
             "context": f"gov_classification={classification}",
@@ -104,23 +105,88 @@ def main():
 
 
 def _log_block(command: str, reason: str, payload: dict):
-    """Append block event to governance log."""
+    """Append block event to governance log AND write receipt JSON."""
     import datetime
+    import uuid
+
+    ts = datetime.datetime.now(datetime.timezone.utc)
+    event = {
+        "ts": ts.isoformat(),
+        "event": "blocked",
+        "command": command[:200],
+        "reason": reason,
+        "session": payload.get("session_id", "")[:20],
+        "tool": payload.get("tool_name", ""),
+    }
+
+    # Append to governance log
     log_path = os.path.join(GOV_ROOT, "mesh", "governance.log")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     try:
         with open(log_path, "a") as f:
-            entry = {
-                "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "event": "blocked",
-                "command": command[:200],
-                "reason": reason,
-                "session": payload.get("session_id", "")[:20],
-                "tool": payload.get("tool_name", ""),
-            }
-            f.write(json.dumps(entry) + "\n")
+            f.write(json.dumps(event) + "\n")
     except OSError:
-        pass  # Don't fail the hook on logging errors
+        pass
+
+    # Write receipt JSON for metrics exporter
+    receipt_dir = os.path.join(GOV_ROOT, "receipts")
+    os.makedirs(receipt_dir, exist_ok=True)
+    receipt_id = uuid.uuid4().hex[:8]
+    receipt = {
+        "action_id": str(uuid.uuid4()),
+        "timestamp": ts.isoformat(),
+        "action_type": "governance_block",
+        "repo_path": "",
+        "starting_commit": "",
+        "ending_commit": "",
+        "files_changed": [],
+        "commands_run": [command[:200]],
+        "duration": 0,
+        "status": "blocked",
+        "policy_decisions": [{"result": "denied", "law_id": reason, "severity": "CRITICAL"}],
+        "provider": "agent-law-gateway",
+        "model": "deterministic",
+        "verification_results": {"allowed": False, "reason": reason},
+    }
+    fname = f"{ts.strftime('%Y-%m-%dT%H-%M-%S')}_{receipt_id}.json"
+    try:
+        with open(os.path.join(receipt_dir, fname), "w") as f:
+            json.dump(receipt, f, indent=2)
+    except OSError:
+        pass
+
+
+def _log_allow(command: str, payload: dict):
+    """Write an allow receipt for metrics tracking."""
+    import datetime
+    import uuid
+
+    ts = datetime.datetime.now(datetime.timezone.utc)
+    receipt_dir = os.path.join(GOV_ROOT, "receipts")
+    os.makedirs(receipt_dir, exist_ok=True)
+    receipt_id = uuid.uuid4().hex[:8]
+    receipt = {
+        "action_id": str(uuid.uuid4()),
+        "timestamp": ts.isoformat(),
+        "action_type": "governance_allow",
+        "repo_path": "",
+        "starting_commit": "",
+        "ending_commit": "",
+        "files_changed": [],
+        "commands_run": [command[:200]],
+        "duration": 0,
+        "status": "success",
+        "policy_decisions": [{"result": "allowed", "law_id": "passed", "severity": "NONE"}],
+        "provider": "agent-law-gateway",
+        "model": "deterministic",
+        "verification_results": {"allowed": True},
+    }
+    fname = f"{ts.strftime('%Y-%m-%dT%H-%M-%S')}_{receipt_id}.json"
+    try:
+        with open(os.path.join(receipt_dir, fname), "w") as f:
+            json.dump(receipt, f, indent=2)
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":

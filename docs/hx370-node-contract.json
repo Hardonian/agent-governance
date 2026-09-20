@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.0.0",
+  "document": "hx370-node-contract",
+  "description": "Machine-readable contract for HX370 enrollment into the Agent Governance system",
+  "epyc_controller": {
+    "hostname": "epyc-primary",
+    "endpoints": {
+      "governance_api": "http://EPYC_IP:9199",
+      "postgres": "postgresql://agent:agent_local@EPYC_IP:5432/agent_governance",
+      "ollama_router": "http://EPYC_IP:11437",
+      "litellm": "http://EPYC_IP:4000",
+      "grafana": "http://EPYC_IP:3005"
+    }
+  },
+  "node_requirements": {
+    "identity": {
+      "node_id": "string (UUID format, generated on first registration)",
+      "hostname": "string",
+      "node_type": "hx370-secondary",
+      "authentication_token": "string (pre-shared key, must match EPYC config)"
+    },
+    "capabilities": {
+      "cpu": {
+        "cores": "integer",
+        "threads": "integer",
+        "model": "string",
+        "frequency_mhz": "integer"
+      },
+      "ram": {
+        "total_mb": "integer",
+        "available_mb": "integer"
+      },
+      "gpu": {
+        "devices": [
+          {
+            "name": "string",
+            "vram_mb": "integer",
+            "driver_version": "string",
+            "pcie_bus": "string"
+          }
+        ]
+      },
+      "npu": {
+        "available": "boolean",
+        "type": "string (e.g. 'xdna', 'none')"
+      },
+      "models": [
+        {
+          "model_id": "string (ollama model name)",
+          "endpoint": "string (local Ollama URL)",
+          "context_length": "integer",
+          "supports_tools": "boolean"
+        }
+      ],
+      "tools": ["string (list of available tool names)"],
+      "repo_capabilities": {
+        "git": "boolean",
+        "node": "string (version, or null)",
+        "python": "string (version, or null)",
+        "rust": "string (version, or null)",
+        "go": "string (version, or null)"
+      }
+    },
+    "health": {
+      "cpu_percent": "float",
+      "ram_percent": "float",
+      "disk_percent": "float",
+      "gpu_utilization": "float",
+      "gpu_vram_percent": "float",
+      "load_average_1m": "float",
+      "uptime_seconds": "integer"
+    },
+    "load": {
+      "running_jobs": "integer",
+      "queued_jobs": "integer",
+      "max_concurrent": "integer"
+    }
+  },
+  "enrollment_protocol": {
+    "step_1": "HX370 generates node_id (UUID) and authentication_token",
+    "step_2": "HX370 calls POST /api/nodes/enroll with identity + capabilities + health",
+    "step_3": "EPYC validates authentication_token against configured pre-shared key",
+    "step_4": "EPYC stores node in workers table, returns enrollment confirmation",
+    "step_5": "HX370 sends heartbeat every 30s: POST /api/nodes/heartbeat with health + load",
+    "step_6": "EPYC scheduler can now assign jobs to HX370"
+  },
+  "security_requirements": {
+    "authentication": "Pre-shared key required. No unauthenticated endpoints.",
+    "network": "Must be on same Tailscale/WireGuard network. No public endpoints.",
+    "encryption": "TLS required for inter-node communication (via Tailscale).",
+    "command_injection": "Node contract is data-only. Repository content cannot override agent laws.",
+    "job_isolation": "Jobs run in isolated git worktrees. No access to other jobs' files.",
+    "no_arbitrary_shell": "Node only accepts predefined action types, not arbitrary commands."
+  },
+  "scheduler_integration": {
+    "task_routing": {
+      "ROUTINE": "Any node with basic capabilities",
+      "FAST": "Node with lowest latency model",
+      "CODE_SEARCH": "Node with coder model",
+      "CODE_EDIT": "Node with coder model + git",
+      "REASONING": "Node with largest reasoning model",
+      "LARGE_CONTEXT": "Node with highest context model",
+      "REVIEW": "Node with tool-supporting model",
+      "SECURITY": "EPYC preferred (has governance tools)",
+      "PLANNING": "EPYC preferred (has full repo registry)"
+    },
+    "concurrency_limits": {
+      "max_jobs_per_node": 4,
+      "max_repo_mutations_per_repo": 1,
+      "max_gpu_inference_per_gpu": 1
+    }
+  },
+  "expected_hx370_hardware": {
+    "cpu": "AMD Ryzen AI 9 HX 370 (12C/24T)",
+    "ram": "16-64 GB DDR5",
+    "gpu": "Integrated AMD Radeon 890M or none",
+    "npu": "AMD XDNA 2 (if supported by driver)"
+  }
+}
